@@ -1,0 +1,142 @@
+%%
+% Uppgift 1
+% === Parametrar ===
+w = [0; 2.5; -0.5];   % Viktvektor
+sigma = 0.3;          % Noise level (kan även testa 0.5, 0.8, 1.2)
+
+% === Skapa 2D-grid ===
+x1 = -1:0.05:1;
+x2 = -1:0.05:1;
+[X1, X2] = meshgrid(x1, x2);
+
+% === Generera data ===
+N = numel(X1);
+X_design = [ones(N,1), X1(:).^2, X2(:).^3];  % Φ(X) enligt Eq. 13
+
+% Generera t enligt modellen
+noise = normrnd(0, sigma, [N,1]);
+t = X_design * w + noise;
+
+% === Plot ===
+figure;
+scatter3(X1(:), X2(:), t, 20, t, 'filled');
+xlabel('x_1');
+ylabel('x_2');
+zlabel('t');
+title(sprintf('Genererade datapunkter (\\sigma = %.1f)', sigma));
+colorbar;
+grid on;
+
+% uppgift 2
+
+
+x1_data = X1(:);
+x2_data = X2(:);
+t_data = t;   % Vektor med dina utfall (storlek 1681x1)
+
+is_test = (abs(x1_data)>0.3) & (abs(x2_data)>0.3);
+is_train = ~is_test; % inversen till testdatan
+
+x1_test = x1_data(is_test);
+x2_test = x2_data(is_test);
+t_test = t_data(is_test);
+
+x1_train = x1_data(is_train);
+x2_train = x2_data(is_train);
+t_train = t_data(is_train);
+
+sigma_extra = 0.3;
+extra_noise = normrnd(0, sigma_extra, size(t_test));
+t_test_noisy = t_test + extra_noise;
+
+
+%%
+% Uppgift 3
+
+Phi_train = [ones(length(x1_train), 1), x1_train.^2, x2_train.^3];
+w_ML = (Phi_train' * Phi_train) \ (Phi_train' * t_train);
+
+Phi_test = [ones(length(x1_test), 1), x1_test.^2, x2_test.^3];
+
+t_pred = Phi_test * w_ML;
+
+t_true_test = w(1) + w(2)*x1_test.^2 + w(3)*x2_test.^3;
+
+MSE = mean((t_pred - t_true_test).^2);
+fprintf('Mean Square Error: %.4f\n', MSE);
+
+%%
+% Uppgift 4 - Utökad med loop över alpha och full Bayesian regression
+
+Phi_train = [ones(length(x1_train), 1), x1_train.^2, x2_train.^3];
+Phi_test = [ones(length(x1_test), 1), x1_test.^2, x2_test.^3];
+
+alphas = [0.3, 0.7, 2.0];  % Testa flera alpha
+
+for ai = 1:length(alphas)
+    alpha = alphas(ai);
+    beta = 1 / sigma^2;
+
+    % --- Posteriorberäkning ---
+    A = alpha * eye(3) + beta * (Phi_train' * Phi_train);
+    S_N = inv(A);
+    m_N = beta * S_N * Phi_train' * t_train;
+
+    % --- Prediktion ---
+    mean_pred = Phi_test * m_N;
+    var_pred = zeros(length(x1_test), 1);
+
+    for i = 1:length(x1_test)
+        phi_x = Phi_test(i, :)';
+        var_pred(i) = (1/beta) + phi_x' * S_N * phi_x;
+    end
+    std_pred = sqrt(var_pred);
+
+    % --- MSE-utvärdering ---
+    t_true_test = w(1) + w(2)*x1_test.^2 + w(3)*x2_test.^3;
+    MSE = mean((mean_pred - t_true_test).^2);
+    fprintf('Alpha = %.1f, MSE = %.7f\n', alpha, MSE);
+
+%{
+    % --- Plot ---
+    figure;
+    hold on;
+    errorbar(1:100, mean_pred(1:100), std_pred(1:100), 'b.');
+    plot(1:100, t_true_test(1:100), 'r--');
+    title(sprintf('Bayesian prediction with alpha = %.1f', alpha));
+    legend('Predicted mean ± std', 'True value');
+    xlabel('Test point index');
+    ylabel('t');
+    grid on;
+
+    % --- 3D-yta: Prediktionsmean ---
+    figure;
+    F_mean = scatteredInterpolant(x1_test, x2_test, mean_pred);
+    [Xq1, Xq2] = meshgrid(linspace(-1,1,50), linspace(-1,1,50));
+    MeanGrid = F_mean(Xq1, Xq2);
+    surf(Xq1, Xq2, MeanGrid);
+    xlabel('x_1');
+    ylabel('x_2');
+    zlabel('Predicted mean');
+    title(sprintf('Predicted mean (alpha = %.1f)', alpha));
+    shading interp; colorbar; grid on;
+    
+    % --- 3D-yta: Prediktionsosäkerhet (std) ---
+    figure;
+    F_std = scatteredInterpolant(x1_test, x2_test, std_pred);
+    StdGrid = F_std(Xq1, Xq2);
+    surf(Xq1, Xq2, StdGrid);
+    xlabel('x_1');
+    ylabel('x_2');
+    zlabel('Predicted std deviation');
+    title(sprintf('Predictive uncertainty (alpha = %.1f)', alpha));
+    shading interp; colorbar; grid on;
+%}
+end
+
+%%
+% Uppg
+
+
+
+
